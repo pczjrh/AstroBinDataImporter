@@ -229,6 +229,38 @@ namespace AstroBin_CSV_Importer
         {
 
         }
+
+        private void loadDatabaseToolStripMenuItem_Click(object sender, EventArgs e) => btn_CreateDatabase_Click(sender, e);
+
+        private void saveToDatabaseToolStripMenuItem_Click(object sender, EventArgs e) => btn_SaveDatabase_Click(sender, e);
+
+        private void mapFiltersToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            List<FitsRecord> records = _currentRecords.Count > 0
+                ? _currentRecords
+                : (_databaseFolder is not null ? FitsDatabase.LoadAll(_databaseFolder) : new List<FitsRecord>());
+
+            IEnumerable<string> loadedFilters = records
+                .Select(r => r.Filter)
+                .Where(f => !string.IsNullOrWhiteSpace(f));
+
+            // Always offer the standard filter set in addition to anything found in loaded data.
+            string[] filters = FilterMappingStore.StandardFilters
+                .Concat(loadedFilters)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            Dictionary<string, int> existingMappings = FilterMappingStore.Load();
+
+            using var form = new FilterMappingForm(filters, existingMappings);
+            if (form.ShowDialog(this) == DialogResult.OK)
+            {
+                FilterMappingStore.Save(form.Mappings);
+
+                MessageBox.Show(this, "Filter mappings saved.",
+                    "Map Filters", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
     }
 
     /// <summary>
