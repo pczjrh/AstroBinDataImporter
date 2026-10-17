@@ -14,6 +14,10 @@ namespace AstroBin_CSV_Importer
         {
             InitializeComponent();
 
+            // NotifyIcon requires an icon to be set before it can display balloon tip
+            // notifications; the app doesn't ship a custom icon, so use the system default.
+            notifyIcon1.Icon = SystemIcons.Application;
+
             // Lock the form's width so the table can't reveal grey space on resize,
             // while still allowing the form (and table) to grow/shrink vertically.
             MinimumSize = new Size(Width, MinimumSize.Height);
@@ -21,6 +25,13 @@ namespace AstroBin_CSV_Importer
 
             // A database must be created/opened before any FITS/XISF data can be loaded.
             btn_LoadFITS.Enabled = false;
+        }
+
+        private void ShowNotification(string title, string message)
+        {
+            notifyIcon1.BalloonTipTitle = title;
+            notifyIcon1.BalloonTipText = message;
+            notifyIcon1.ShowBalloonTip(3000);
         }
 
         private void btn_CreateDatabase_Click(object sender, EventArgs e)
@@ -49,14 +60,11 @@ namespace AstroBin_CSV_Importer
 
                 btn_LoadFITS.Enabled = true;
 
-                MessageBox.Show(this,
-                    $"Database ready at:\n{FitsDatabase.GetDatabasePath(_databaseFolder)}",
-                    "Database Ready", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowNotification("Database Ready", $"Database ready at:\n{FitsDatabase.GetDatabasePath(_databaseFolder)}");
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"An error occurred while creating the database:\n{ex.Message}",
-                    "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowNotification("Database Error", $"An error occurred while creating the database:\n{ex.Message}");
             }
         }
 
@@ -64,8 +72,7 @@ namespace AstroBin_CSV_Importer
         {
             if (_databaseFolder is null)
             {
-                MessageBox.Show(this, "Create or open a database before loading FITS/XISF files.",
-                    "Database Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowNotification("Database Required", "Create or open a database before loading FITS/XISF files.");
                 return;
             }
 
@@ -100,8 +107,7 @@ namespace AstroBin_CSV_Importer
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"An error occurred while reading FITS/XISF files:\n{ex.Message}",
-                    "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowNotification("Import Error", $"An error occurred while reading FITS/XISF files:\n{ex.Message}");
             }
             finally
             {
@@ -114,15 +120,13 @@ namespace AstroBin_CSV_Importer
         {
             if (_databaseFolder is null)
             {
-                MessageBox.Show(this, "Create or open a database before saving.",
-                    "Database Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowNotification("Database Required", "Create or open a database before saving.");
                 return;
             }
 
             if (_currentRecords.Count == 0)
             {
-                MessageBox.Show(this, "Load FITS or XISF files before saving to the database.",
-                    "Nothing to Save", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowNotification("Nothing to Save", "Load FITS or XISF files before saving to the database.");
                 return;
             }
 
@@ -138,15 +142,13 @@ namespace AstroBin_CSV_Importer
                 _currentRecords = merged;
                 PopulateSummary(merged);
 
-                MessageBox.Show(this,
+                ShowNotification("Database Saved",
                     $"Database saved to:\n{FitsDatabase.GetDatabasePath(_databaseFolder)}\n\n" +
-                    $"New records added: {inserted}\nTotal records: {merged.Count}",
-                    "Database Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    $"New records added: {inserted}\nTotal records: {merged.Count}");
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"An error occurred while saving the database:\n{ex.Message}",
-                    "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowNotification("Database Error", $"An error occurred while saving the database:\n{ex.Message}");
             }
         }
 
@@ -188,8 +190,13 @@ namespace AstroBin_CSV_Importer
         {
             dgv_SummaryData.Rows.Clear();
 
-            var groups = records
-                .GroupBy(r => new { r.Filter, r.DateOnly })
+            // Only light frames represent actual imaging data for the session summary;
+            // calibration frames (dark/bias/flat/flat-dark) are tracked separately and
+            // rolled into the AstroBin export's darks/flats/flatDarks/bias counts.
+            List<FitsRecord> lightRecords = records.Where(r => r.ImageType == FrameType.Light).ToList();
+
+            var groups = lightRecords
+                .GroupBy(r => new { Filter = FilterAliasResolver.ToCanonicalName(r.Filter), r.DateOnly })
                 .OrderBy(g => g.Key.DateOnly, StringComparer.Ordinal)
                 .ThenBy(g => g.Key.Filter, StringComparer.OrdinalIgnoreCase);
 
@@ -215,7 +222,7 @@ namespace AstroBin_CSV_Importer
                 dgv_SummaryData.Rows.Add("No valid FITS headers could be read from the selected files.", "", "", "", "", "");
             }
 
-            double totalSeconds = records.Sum(r => r.ExposureSeconds);
+            double totalSeconds = lightRecords.Sum(r => r.ExposureSeconds);
             TimeSpan totalIntegrationTime = TimeSpan.FromSeconds(totalSeconds);
             lbl_TotalIntTimeResult.Text = string.Format(
                 CultureInfo.InvariantCulture,
@@ -230,37 +237,99 @@ namespace AstroBin_CSV_Importer
 
         }
 
+        private void btn_Export_Click(object sender, EventArgs e)
+        {
+            if (_databaseFolder is null)
+            {
+                ShowNotification("Database Required", "Create or open a database before exporting.");
+                return;
+            }
+
+            if (_currentRecords.Count == 0)
+            {
+                ShowNotification("Nothing to Export", "Load FITS or XISF files (or a saved database) before exporting.");
+                return;
+            }
+
+            try
+            {
+                string csv = AstroBinExporter.BuildCsv(_currentRecords);
+
+                string exportPath = Path.Combine(_databaseFolder, "AstroBinExport.csv");
+                File.WriteAllText(exportPath, csv);
+
+                Clipboard.SetText(csv);
+
+                ShowNotification("Export Complete",
+                    $"Export saved to:\n{exportPath}\n\nThe data has also been copied to the clipboard.");
+            }
+            catch (Exception ex)
+            {
+                ShowNotification("Export Error", $"An error occurred while exporting:\n{ex.Message}");
+            }
+        }
+
         private void loadDatabaseToolStripMenuItem_Click(object sender, EventArgs e) => btn_CreateDatabase_Click(sender, e);
 
         private void saveToDatabaseToolStripMenuItem_Click(object sender, EventArgs e) => btn_SaveDatabase_Click(sender, e);
 
         private void mapFiltersToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            List<FitsRecord> records = _currentRecords.Count > 0
-                ? _currentRecords
-                : (_databaseFolder is not null ? FitsDatabase.LoadAll(_databaseFolder) : new List<FitsRecord>());
+            List<(string Name, int Code)> existingMappings = FilterMappingStore.Load();
 
-            IEnumerable<string> loadedFilters = records
-                .Select(r => r.Filter)
-                .Where(f => !string.IsNullOrWhiteSpace(f));
-
-            // Always offer the standard filter set in addition to anything found in loaded data.
-            string[] filters = FilterMappingStore.StandardFilters
-                .Concat(loadedFilters)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            Dictionary<string, int> existingMappings = FilterMappingStore.Load();
-
-            using var form = new FilterMappingForm(filters, existingMappings);
+            using var form = new FilterMappingForm(existingMappings);
             if (form.ShowDialog(this) == DialogResult.OK)
             {
                 FilterMappingStore.Save(form.Mappings);
 
-                MessageBox.Show(this, "Filter mappings saved.",
-                    "Map Filters", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowNotification("Map Filters", "Filter mappings saved.");
             }
         }
+
+        private void clearDatabaseToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_databaseFolder is null)
+            {
+                ShowNotification("Database Required", "Create or open a database before clearing it.");
+                return;
+            }
+
+            DialogResult confirm = MessageBox.Show(this,
+                "This will permanently delete all records from the current database. Continue?",
+                "Clear Database", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+            if (confirm != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                FitsDatabase.ClearAll(_databaseFolder);
+
+                _currentRecords = new List<FitsRecord>();
+                PopulateSummary(_currentRecords);
+
+                ShowNotification("Database Cleared", "All records have been removed from the database.");
+            }
+            catch (Exception ex)
+            {
+                ShowNotification("Database Error", $"An error occurred while clearing the database:\n{ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Classification of a frame's purpose, derived from the FITS "IMAGETYP" header keyword.
+    /// </summary>
+    internal enum FrameType
+    {
+        Light,
+        Dark,
+        Bias,
+        Flat,
+        FlatDark,
+        Unknown
     }
 
     /// <summary>
@@ -274,6 +343,48 @@ namespace AstroBin_CSV_Importer
         public double ExposureSeconds { get; init; }
         public double CcdTemp { get; init; }
         public string? CcdName { get; init; }
+
+        /// <summary>
+        /// Normalized frame type derived from the FITS "IMAGETYP" header keyword
+        /// (e.g. "Light Frame", "Dark", "Bias", "Flat"/"Flat Field").
+        /// </summary>
+        public FrameType ImageType { get; init; } = FrameType.Light;
+
+        /// <summary>
+        /// ISO setting on the camera, if present in the header (e.g. "ISO" or "ISOSPEED").
+        /// </summary>
+        public int? Iso { get; init; }
+
+        /// <summary>
+        /// Pixel binning (e.g. "XBINNING"), if present in the header.
+        /// </summary>
+        public int? Binning { get; init; }
+
+        /// <summary>
+        /// Camera gain setting, if present in the header (e.g. "GAIN" or "EGAIN").
+        /// </summary>
+        public double? Gain { get; init; }
+
+        /// <summary>
+        /// Focal ratio (f-number) of the optical system, if present in the header (e.g. "FOCRATIO").
+        /// </summary>
+        public double? FNumber { get; init; }
+
+        /// <summary>
+        /// Ambient (outside air) temperature in Celsius, if present in the header
+        /// (e.g. "AMBTEMP" or "OUTTEMP").
+        /// </summary>
+        public double? AmbientTemp { get; init; }
+
+        /// <summary>
+        /// Mean Full Width at Half Maximum (seeing), in arc seconds, if present in the header.
+        /// </summary>
+        public double? MeanFwhm { get; init; }
+
+        /// <summary>
+        /// Mean Sky Quality Meter reading (mag/arcsec^2), if present in the header.
+        /// </summary>
+        public double? MeanSqm { get; init; }
 
         /// <summary>
         /// DATE-OB truncated to just the calendar date portion (yyyy-MM-dd) for grouping purposes.
@@ -305,6 +416,15 @@ namespace AstroBin_CSV_Importer
                 string? exposureRaw = ReadKeyword(fptr, "EXPOSURE");
                 string? ccdTempRaw = ReadKeyword(fptr, "CCD-TEMP");
                 string? ccdName = ReadKeyword(fptr, "INSTRUME") ?? ReadKeyword(fptr, "INSTRUMENT");
+                string? imageTypeRaw = ReadKeyword(fptr, "IMAGETYP");
+                string? isoRaw = ReadKeyword(fptr, "ISO");
+                string? binningRaw = ReadKeyword(fptr, "XBINNING");
+                // Note: ISOSPEED holds the camera's gain setting (not ISO) for these cameras.
+                string? gainRaw = ReadKeyword(fptr, "GAIN") ?? ReadKeyword(fptr, "EGAIN") ?? ReadKeyword(fptr, "ISOSPEED");
+                string? fNumberRaw = ReadKeyword(fptr, "FOCRATIO");
+                string? ambientTempRaw = ReadKeyword(fptr, "AMBTEMP") ?? ReadKeyword(fptr, "OUTTEMP");
+                string? fwhmRaw = ReadKeyword(fptr, "FWHM");
+                string? sqmRaw = ReadKeyword(fptr, "SQM");
 
                 return new FitsRecord
                 {
@@ -313,7 +433,15 @@ namespace AstroBin_CSV_Importer
                     DateObs = dateObs,
                     ExposureSeconds = HeaderValueHelpers.ParseDouble(exposureRaw),
                     CcdTemp = HeaderValueHelpers.ParseDouble(ccdTempRaw),
-                    CcdName = ccdName
+                    CcdName = ccdName,
+                    ImageType = HeaderValueHelpers.NormalizeImageType(imageTypeRaw),
+                    Iso = HeaderValueHelpers.ParseNullableInt(isoRaw),
+                    Binning = HeaderValueHelpers.ParseNullableInt(binningRaw),
+                    Gain = HeaderValueHelpers.ParseNullableDouble(gainRaw),
+                    FNumber = HeaderValueHelpers.ParseNullableDouble(fNumberRaw),
+                    AmbientTemp = HeaderValueHelpers.ParseNullableDouble(ambientTempRaw),
+                    MeanFwhm = HeaderValueHelpers.ParseNullableDouble(fwhmRaw),
+                    MeanSqm = HeaderValueHelpers.ParseNullableDouble(sqmRaw)
                 };
             }
             finally
@@ -387,7 +515,7 @@ namespace AstroBin_CSV_Importer
             return records
                 .GroupBy(r => Path.GetFileNameWithoutExtension(r.FileName), StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
-                .GroupBy(r => (r.DateObs, r.Filter, r.ExposureSeconds, r.CcdTemp), HeaderKeyComparer.Instance)
+                .GroupBy(r => (r.DateObs, r.Filter, r.ExposureSeconds, r.CcdTemp, r.ImageType), HeaderKeyComparer.Instance)
                 .Select(g => g.First())
                 .ToList();
         }
@@ -397,27 +525,29 @@ namespace AstroBin_CSV_Importer
         /// and comparing exposure/temperature with a small tolerance to account for minor
         /// floating-point formatting differences between FITS and XISF representations.
         /// </summary>
-        private sealed class HeaderKeyComparer : IEqualityComparer<(string DateObs, string Filter, double ExposureSeconds, double CcdTemp)>
+        private sealed class HeaderKeyComparer : IEqualityComparer<(string DateObs, string Filter, double ExposureSeconds, double CcdTemp, FrameType ImageType)>
         {
             public static readonly HeaderKeyComparer Instance = new();
             private const double Tolerance = 0.01;
 
-            public bool Equals((string DateObs, string Filter, double ExposureSeconds, double CcdTemp) x,
-                                (string DateObs, string Filter, double ExposureSeconds, double CcdTemp) y)
+            public bool Equals((string DateObs, string Filter, double ExposureSeconds, double CcdTemp, FrameType ImageType) x,
+                                (string DateObs, string Filter, double ExposureSeconds, double CcdTemp, FrameType ImageType) y)
             {
                 return string.Equals(x.DateObs, y.DateObs, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(x.Filter, y.Filter, StringComparison.OrdinalIgnoreCase)
                     && Math.Abs(x.ExposureSeconds - y.ExposureSeconds) < Tolerance
-                    && Math.Abs(x.CcdTemp - y.CcdTemp) < Tolerance;
+                    && Math.Abs(x.CcdTemp - y.CcdTemp) < Tolerance
+                    && x.ImageType == y.ImageType;
             }
 
-            public int GetHashCode((string DateObs, string Filter, double ExposureSeconds, double CcdTemp) obj)
+            public int GetHashCode((string DateObs, string Filter, double ExposureSeconds, double CcdTemp, FrameType ImageType) obj)
             {
                 return HashCode.Combine(
                     obj.DateObs.ToUpperInvariant(),
                     obj.Filter.ToUpperInvariant(),
                     Math.Round(obj.ExposureSeconds, 2),
-                    Math.Round(obj.CcdTemp, 2));
+                    Math.Round(obj.CcdTemp, 2),
+                    obj.ImageType);
             }
         }
     }
@@ -449,6 +579,77 @@ namespace AstroBin_CSV_Importer
             return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
                 ? value
                 : 0;
+        }
+
+        public static double? ParseNullableDouble(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+                ? value
+                : null;
+        }
+
+        public static int? ParseNullableInt(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            // Some cameras report binning/ISO as a float-looking string (e.g. "100.0"),
+            // so parse as double first and round, rather than failing outright.
+            return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+                ? (int)Math.Round(value)
+                : null;
+        }
+
+        /// <summary>
+        /// Maps common "IMAGETYP" header values to a <see cref="FrameType"/>. Different
+        /// capture software uses different conventions (e.g. "Light Frame" vs "Light",
+        /// "Flat Field" vs "Flat", "Dark Frame" vs "Dark"), so matching is done by prefix.
+        /// </summary>
+        public static FrameType NormalizeImageType(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return FrameType.Light;
+            }
+
+            string value = raw.Trim();
+
+            if (value.StartsWith("FlatDark", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("Flat Dark", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("Dark Flat", StringComparison.OrdinalIgnoreCase))
+            {
+                return FrameType.FlatDark;
+            }
+
+            if (value.StartsWith("Flat", StringComparison.OrdinalIgnoreCase))
+            {
+                return FrameType.Flat;
+            }
+
+            if (value.StartsWith("Dark", StringComparison.OrdinalIgnoreCase))
+            {
+                return FrameType.Dark;
+            }
+
+            if (value.StartsWith("Bias", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("Offset", StringComparison.OrdinalIgnoreCase))
+            {
+                return FrameType.Bias;
+            }
+
+            if (value.StartsWith("Light", StringComparison.OrdinalIgnoreCase))
+            {
+                return FrameType.Light;
+            }
+
+            return FrameType.Unknown;
         }
     }
 
@@ -498,6 +699,15 @@ namespace AstroBin_CSV_Importer
             string? exposureRaw = GetKeyword("EXPOSURE") ?? GetKeyword("EXPTIME");
             string? ccdTempRaw = GetKeyword("CCD-TEMP");
             string? ccdName = GetKeyword("INSTRUME") ?? GetKeyword("INSTRUMENT");
+            string? imageTypeRaw = GetKeyword("IMAGETYP");
+            string? isoRaw = GetKeyword("ISO");
+            string? binningRaw = GetKeyword("XBINNING");
+            // Note: ISOSPEED holds the camera's gain setting (not ISO) for these cameras.
+            string? gainRaw = GetKeyword("GAIN") ?? GetKeyword("EGAIN") ?? GetKeyword("ISOSPEED");
+            string? fNumberRaw = GetKeyword("FOCRATIO");
+            string? ambientTempRaw = GetKeyword("AMBTEMP") ?? GetKeyword("OUTTEMP");
+            string? fwhmRaw = GetKeyword("FWHM");
+            string? sqmRaw = GetKeyword("SQM");
 
             return new FitsRecord
             {
@@ -506,7 +716,15 @@ namespace AstroBin_CSV_Importer
                 DateObs = dateObs,
                 ExposureSeconds = HeaderValueHelpers.ParseDouble(exposureRaw),
                 CcdTemp = HeaderValueHelpers.ParseDouble(ccdTempRaw),
-                CcdName = ccdName
+                CcdName = ccdName,
+                ImageType = HeaderValueHelpers.NormalizeImageType(imageTypeRaw),
+                Iso = HeaderValueHelpers.ParseNullableInt(isoRaw),
+                Binning = HeaderValueHelpers.ParseNullableInt(binningRaw),
+                Gain = HeaderValueHelpers.ParseNullableDouble(gainRaw),
+                FNumber = HeaderValueHelpers.ParseNullableDouble(fNumberRaw),
+                AmbientTemp = HeaderValueHelpers.ParseNullableDouble(ambientTempRaw),
+                MeanFwhm = HeaderValueHelpers.ParseNullableDouble(fwhmRaw),
+                MeanSqm = HeaderValueHelpers.ParseNullableDouble(sqmRaw)
             };
         }
     }

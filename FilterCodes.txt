@@ -1,0 +1,14 @@
+Red, 1234
+Name,Code
+Luminance,1111
+Red,2222
+Green,2134
+Blue,3897
+Ha,3688
+Oiii,5372
+Sii,3333
+IDAZ,9936
+Spec,1111
+Methane,7464
+LightPol,7628
+MoonFilter,2222

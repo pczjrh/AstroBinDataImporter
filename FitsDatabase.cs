@@ -31,10 +31,64 @@ namespace AstroBin_CSV_Importer
                     ExposureSeconds REAL NOT NULL,
                     CcdTemp REAL NOT NULL,
                     CcdName TEXT,
+                    ImageType TEXT,
+                    Iso INTEGER,
+                    Binning INTEGER,
+                    Gain REAL,
+                    FNumber REAL,
+                    AmbientTemp REAL,
+                    MeanFwhm REAL,
+                    MeanSqm REAL,
                     UNIQUE (DateObs, Filter, ExposureSeconds, CcdTemp)
                 );
                 """;
             command.ExecuteNonQuery();
+
+            MigrateSchema(connection);
+        }
+
+        /// <summary>
+        /// Adds any columns introduced after the table was first created, for databases that
+        /// already existed before these columns were added. SQLite doesn't support
+        /// "ADD COLUMN IF NOT EXISTS", so existing columns are checked via PRAGMA table_info.
+        /// </summary>
+        private static void MigrateSchema(SqliteConnection connection)
+        {
+            var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            using (var pragmaCommand = connection.CreateCommand())
+            {
+                pragmaCommand.CommandText = "PRAGMA table_info(FitsRecords);";
+                using SqliteDataReader reader = pragmaCommand.ExecuteReader();
+                while (reader.Read())
+                {
+                    existingColumns.Add(reader.GetString(1));
+                }
+            }
+
+            (string Column, string Definition)[] newColumns =
+            {
+                ("ImageType", "TEXT"),
+                ("Iso", "INTEGER"),
+                ("Binning", "INTEGER"),
+                ("Gain", "REAL"),
+                ("FNumber", "REAL"),
+                ("AmbientTemp", "REAL"),
+                ("MeanFwhm", "REAL"),
+                ("MeanSqm", "REAL")
+            };
+
+            foreach ((string column, string definition) in newColumns)
+            {
+                if (existingColumns.Contains(column))
+                {
+                    continue;
+                }
+
+                using var alterCommand = connection.CreateCommand();
+                alterCommand.CommandText = $"ALTER TABLE FitsRecords ADD COLUMN {column} {definition};";
+                alterCommand.ExecuteNonQuery();
+            }
         }
 
         /// <summary>
@@ -46,7 +100,11 @@ namespace AstroBin_CSV_Importer
 
             using SqliteConnection connection = OpenConnection(folder);
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT FileName, Filter, DateObs, ExposureSeconds, CcdTemp, CcdName FROM FitsRecords;";
+            command.CommandText = """
+                SELECT FileName, Filter, DateObs, ExposureSeconds, CcdTemp, CcdName, ImageType,
+                       Iso, Binning, Gain, FNumber, AmbientTemp, MeanFwhm, MeanSqm
+                FROM FitsRecords;
+                """;
 
             var records = new List<FitsRecord>();
             using SqliteDataReader reader = command.ExecuteReader();
@@ -59,11 +117,34 @@ namespace AstroBin_CSV_Importer
                     DateObs = reader.GetString(2),
                     ExposureSeconds = reader.GetDouble(3),
                     CcdTemp = reader.GetDouble(4),
-                    CcdName = reader.IsDBNull(5) ? null : reader.GetString(5)
+                    CcdName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    ImageType = reader.IsDBNull(6)
+                        ? FrameType.Light
+                        : Enum.TryParse(reader.GetString(6), out FrameType frameType) ? frameType : FrameType.Light,
+                    Iso = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+                    Binning = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                    Gain = reader.IsDBNull(9) ? null : reader.GetDouble(9),
+                    FNumber = reader.IsDBNull(10) ? null : reader.GetDouble(10),
+                    AmbientTemp = reader.IsDBNull(11) ? null : reader.GetDouble(11),
+                    MeanFwhm = reader.IsDBNull(12) ? null : reader.GetDouble(12),
+                    MeanSqm = reader.IsDBNull(13) ? null : reader.GetDouble(13)
                 });
             }
 
             return records;
+        }
+
+        /// <summary>
+        /// Deletes all records from the database, emptying it while keeping the file/schema intact.
+        /// </summary>
+        public static void ClearAll(string folder)
+        {
+            Initialize(folder);
+
+            using SqliteConnection connection = OpenConnection(folder);
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM FitsRecords;";
+            command.ExecuteNonQuery();
         }
 
         /// <summary>
@@ -82,8 +163,12 @@ namespace AstroBin_CSV_Importer
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = """
-                INSERT OR IGNORE INTO FitsRecords (FileName, Filter, DateObs, ExposureSeconds, CcdTemp, CcdName)
-                VALUES ($fileName, $filter, $dateObs, $exposureSeconds, $ccdTemp, $ccdName);
+                INSERT OR IGNORE INTO FitsRecords
+                    (FileName, Filter, DateObs, ExposureSeconds, CcdTemp, CcdName, ImageType,
+                     Iso, Binning, Gain, FNumber, AmbientTemp, MeanFwhm, MeanSqm)
+                VALUES
+                    ($fileName, $filter, $dateObs, $exposureSeconds, $ccdTemp, $ccdName, $imageType,
+                     $iso, $binning, $gain, $fNumber, $ambientTemp, $meanFwhm, $meanSqm);
                 """;
 
             var fileNameParam = command.Parameters.Add("$fileName", SqliteType.Text);
@@ -92,6 +177,14 @@ namespace AstroBin_CSV_Importer
             var exposureParam = command.Parameters.Add("$exposureSeconds", SqliteType.Real);
             var ccdTempParam = command.Parameters.Add("$ccdTemp", SqliteType.Real);
             var ccdNameParam = command.Parameters.Add("$ccdName", SqliteType.Text);
+            var imageTypeParam = command.Parameters.Add("$imageType", SqliteType.Text);
+            var isoParam = command.Parameters.Add("$iso", SqliteType.Integer);
+            var binningParam = command.Parameters.Add("$binning", SqliteType.Integer);
+            var gainParam = command.Parameters.Add("$gain", SqliteType.Real);
+            var fNumberParam = command.Parameters.Add("$fNumber", SqliteType.Real);
+            var ambientTempParam = command.Parameters.Add("$ambientTemp", SqliteType.Real);
+            var meanFwhmParam = command.Parameters.Add("$meanFwhm", SqliteType.Real);
+            var meanSqmParam = command.Parameters.Add("$meanSqm", SqliteType.Real);
 
             int inserted = 0;
             foreach (FitsRecord record in records)
@@ -102,6 +195,14 @@ namespace AstroBin_CSV_Importer
                 exposureParam.Value = record.ExposureSeconds;
                 ccdTempParam.Value = record.CcdTemp;
                 ccdNameParam.Value = (object?)record.CcdName ?? DBNull.Value;
+                imageTypeParam.Value = record.ImageType.ToString();
+                isoParam.Value = (object?)record.Iso ?? DBNull.Value;
+                binningParam.Value = (object?)record.Binning ?? DBNull.Value;
+                gainParam.Value = (object?)record.Gain ?? DBNull.Value;
+                fNumberParam.Value = (object?)record.FNumber ?? DBNull.Value;
+                ambientTempParam.Value = (object?)record.AmbientTemp ?? DBNull.Value;
+                meanFwhmParam.Value = (object?)record.MeanFwhm ?? DBNull.Value;
+                meanSqmParam.Value = (object?)record.MeanSqm ?? DBNull.Value;
 
                 inserted += command.ExecuteNonQuery();
             }

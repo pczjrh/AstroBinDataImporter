@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             btn_LoadFITS = new Button();
@@ -49,6 +50,8 @@
             loadDatabaseToolStripMenuItem = new ToolStripMenuItem();
             saveToDatabaseToolStripMenuItem = new ToolStripMenuItem();
             mapFiltersToolStripMenuItem = new ToolStripMenuItem();
+            clearDatabaseToolStripMenuItem = new ToolStripMenuItem();
+            notifyIcon1 = new NotifyIcon(components);
             ((System.ComponentModel.ISupportInitialize)dgv_SummaryData).BeginInit();
             menuStrip1.SuspendLayout();
             SuspendLayout();
@@ -137,6 +140,7 @@
             btn_Export.TabIndex = 3;
             btn_Export.Text = "Export";
             btn_Export.UseVisualStyleBackColor = true;
+            btn_Export.Click += btn_Export_Click;
             // 
             // lbl_TotalTime
             // 
@@ -188,7 +192,7 @@
             // 
             // databaseToolStripMenuItem
             // 
-            databaseToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { loadDatabaseToolStripMenuItem, saveToDatabaseToolStripMenuItem, mapFiltersToolStripMenuItem });
+            databaseToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { loadDatabaseToolStripMenuItem, saveToDatabaseToolStripMenuItem, mapFiltersToolStripMenuItem, clearDatabaseToolStripMenuItem });
             databaseToolStripMenuItem.Name = "databaseToolStripMenuItem";
             databaseToolStripMenuItem.Size = new Size(76, 20);
             databaseToolStripMenuItem.Text = "Database";
@@ -213,6 +217,18 @@
             mapFiltersToolStripMenuItem.Size = new Size(180, 22);
             mapFiltersToolStripMenuItem.Text = "Map Filters";
             mapFiltersToolStripMenuItem.Click += mapFiltersToolStripMenuItem_Click;
+            // 
+            // clearDatabaseToolStripMenuItem
+            // 
+            clearDatabaseToolStripMenuItem.Name = "clearDatabaseToolStripMenuItem";
+            clearDatabaseToolStripMenuItem.Size = new Size(180, 22);
+            clearDatabaseToolStripMenuItem.Text = "Clear Database";
+            clearDatabaseToolStripMenuItem.Click += clearDatabaseToolStripMenuItem_Click;
+            // 
+            // notifyIcon1
+            // 
+            notifyIcon1.Text = "AstroBin Data Importer";
+            notifyIcon1.Visible = true;
             // 
             // Form1
             // 
@@ -259,5 +275,7 @@
         private ToolStripMenuItem loadDatabaseToolStripMenuItem;
         private ToolStripMenuItem saveToDatabaseToolStripMenuItem;
         private ToolStripMenuItem mapFiltersToolStripMenuItem;
+        private ToolStripMenuItem clearDatabaseToolStripMenuItem;
+        private NotifyIcon notifyIcon1;
     }
 }
