@@ -102,8 +102,15 @@ namespace AstroBin_CSV_Importer
             try
             {
                 List<FitsRecord> records = await Task.Run(() => ReadImageFiles(ofd.FileNames, progress));
-                _currentRecords = records;
-                PopulateSummary(records);
+
+                // Merge with any records already stored in the database so the table reflects
+                // the full picture (previously saved data + newly loaded files) immediately,
+                // rather than only showing the newly loaded batch.
+                List<FitsRecord> existing = FitsDatabase.LoadAll(_databaseFolder);
+                List<FitsRecord> merged = FitsRecordDeduplicator.Deduplicate(existing.Concat(records));
+
+                _currentRecords = merged;
+                PopulateSummary(merged);
             }
             catch (Exception ex)
             {
@@ -411,7 +418,9 @@ namespace AstroBin_CSV_Importer
                 NativeMethods.fits_open_file(out fptr, fileName, Readonly, out status);
                 ThrowIfError(status, "opening file");
 
-                string filter = ReadKeyword(fptr, "FILTER") ?? "Unknown";
+                string? filterRaw = ReadKeyword(fptr, "FILTER");
+                string? bayerPatternRaw = ReadKeyword(fptr, "BAYERPAT") ?? ReadKeyword(fptr, "BAYER_MATRIX");
+                string filter = HeaderValueHelpers.ResolveFilter(filterRaw, bayerPatternRaw);
                 string dateObs = ReadKeyword(fptr, "DATE-OBS") ?? "Unknown";
                 string? exposureRaw = ReadKeyword(fptr, "EXPOSURE");
                 string? ccdTempRaw = ReadKeyword(fptr, "CCD-TEMP");
@@ -651,6 +660,22 @@ namespace AstroBin_CSV_Importer
 
             return FrameType.Unknown;
         }
+
+        /// <summary>
+        /// Resolves the effective filter name for a frame. One-shot-color cameras typically
+        /// have no "FILTER" keyword (or report a Bayer color matrix via "BAYERPAT"/"BAYER_MATRIX"
+        /// instead of a filter name), in which case the frame is effectively unfiltered/color
+        /// and should be reported as "RGB" rather than "Unknown".
+        /// </summary>
+        public static string ResolveFilter(string? filterRaw, string? bayerPatternRaw)
+        {
+            if (!string.IsNullOrWhiteSpace(bayerPatternRaw))
+            {
+                return "RGB";
+            }
+
+            return string.IsNullOrWhiteSpace(filterRaw) ? "RGB" : filterRaw.Trim();
+        }
     }
 
     /// <summary>
@@ -694,7 +719,9 @@ namespace AstroBin_CSV_Importer
                     ? HeaderValueHelpers.CleanValue(raw)
                     : null;
 
-            string filter = GetKeyword("FILTER") ?? "Unknown";
+            string? filterRaw = GetKeyword("FILTER");
+            string? bayerPatternRaw = GetKeyword("BAYERPAT") ?? GetKeyword("BAYER_MATRIX");
+            string filter = HeaderValueHelpers.ResolveFilter(filterRaw, bayerPatternRaw);
             string dateObs = GetKeyword("DATE-OBS") ?? "Unknown";
             string? exposureRaw = GetKeyword("EXPOSURE") ?? GetKeyword("EXPTIME");
             string? ccdTempRaw = GetKeyword("CCD-TEMP");
