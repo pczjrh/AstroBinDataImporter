@@ -25,6 +25,22 @@ namespace AstroBin_CSV_Importer
 
             // A database must be created/opened before any FITS/XISF data can be loaded.
             btn_LoadFITS.Enabled = false;
+
+            AppTheme theme = AppSettingsStore.LoadTheme();
+            darkModeToolStripMenuItem.Checked = theme == AppTheme.Dark;
+            ApplyTheme(theme);
+        }
+
+        private void ApplyTheme(AppTheme theme)
+        {
+            ThemeManager.Apply(this, theme);
+        }
+
+        private void darkModeToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            AppTheme theme = darkModeToolStripMenuItem.Checked ? AppTheme.Dark : AppTheme.Light;
+            ApplyTheme(theme);
+            AppSettingsStore.SaveTheme(theme);
         }
 
         private void ShowNotification(string title, string message)
@@ -237,6 +253,26 @@ namespace AstroBin_CSV_Importer
                 (int)totalIntegrationTime.TotalHours,
                 totalIntegrationTime.Minutes,
                 totalIntegrationTime.Seconds);
+
+            UpdateOverviewChart(lightRecords);
+        }
+
+        private void UpdateOverviewChart(List<FitsRecord> lightRecords)
+        {
+            var filterCounts = lightRecords
+                .GroupBy(r => FilterAliasResolver.ToCanonicalName(r.Filter))
+                .OrderByDescending(g => g.Count())
+                .ToList();
+
+            var slices = new List<PieSlice>();
+            for (int i = 0; i < filterCounts.Count; i++)
+            {
+                var group = filterCounts[i];
+                Color color = FilterAliasResolver.ToColor(group.Key);
+                slices.Add(new PieSlice(group.Key, group.Count(), color));
+            }
+
+            pieChart.SetData(slices);
         }
 
         private void label1_Click(object sender, EventArgs e)

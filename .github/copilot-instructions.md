@@ -27,6 +27,9 @@ Root namespace: `AstroBin_CSV_Importer`. Main project file: `AstroBin-CSV-Import
 | `AstroBinExporter.cs` | Builds the AstroBin CSV export from `FitsRecord` data + `FilterMappingStore` + `FilterAliasResolver`. |
 | `FilterCodes.txt` | Seed data for `FilterMappingStore` (CSV, header row `Name,Code`), copied to output dir via `.csproj`. |
 | `cfitsio.dll` | Native dependency for FITS reading, copied to output dir via `.csproj`. |
+| `ThemeManager.cs` | Applies a hand-rolled light/dark color palette by walking the form's control tree (no external theming library/dark-mode API used). |
+| `AppSettingsStore.cs` | Persists the chosen theme (`AppTheme.Light`/`Dark`) as a single-line text file in `%AppData%\AstroBinDataImporter\Settings.txt`, mirroring `FilterMappingStore`'s storage pattern. Independent of the per-project database. |
+| `PieChartControl.cs` | Dependency-free GDI+ pie chart (`Control` subclass, custom `OnPaint`) + legend, used by the "Overview" panel to show Light-frame distribution by canonical filter name. |
 
 ## Key domain concepts
 
@@ -63,10 +66,19 @@ Root namespace: `AstroBin_CSV_Importer`. Main project file: `AstroBin-CSV-Import
   FITS/XISF pairs of the same frame), then by a header-content key
   (`DateObs`, `Filter`, `ExposureSeconds`, `CcdTemp`, `ImageType`) with a small numeric tolerance.
 
-- **Filter aliasing**: filter names found in FITS headers (`R`, `G`, `B`, `L`, `Luminance`, etc.)
-  are normalized to canonical display names (`Red`, `Green`, `Blue`, `Lum`) via
-  `FilterAliasResolver.ToCanonicalName` wherever data is grouped for display or export. The raw
-  value from the header is still stored as-is in the DB; only the reporting/export layer normalizes it.
+- **Filter aliasing**: filter names found in FITS headers (`R`, `G`, `B`, `L`, `Luminance`, `Ha`,
+  `H-Alpha`, `Oiii`, `O-III`, `Sii`, `S-II`, etc.) are normalized to canonical display names
+  (`Red`, `Green`, `Blue`, `Lum`, `Ha`, `Oiii`, `Sii`) via `FilterAliasResolver.ToCanonicalName`
+  wherever data is grouped for display, export, or charting. The raw value from the header is
+  still stored as-is in the DB; only the reporting/export/chart layer normalizes it.
+- **Filter colors**: `FilterAliasResolver.ToColor(canonicalName)` maps each canonical filter name
+  to a fixed `Color` used by the Overview pie chart: `Red`/`Green`/`Blue` → pure RGB primaries,
+  `RGB` (OSC/Bayer frames, see `HeaderValueHelpers.ResolveFilter`) → white, `Lum` → near-white,
+  `Ha` → a distinct orange-red (deliberately different from `Red`), `Oiii` → a distinct cyan-blue
+  (deliberately different from `Blue`), `Sii` → dark red. Unrecognized filter names fall back to a
+  small deterministic (hash-based) palette so colors stay stable across refreshes. **When adding a
+  new narrowband/broadband alias, add both the alias→canonical mapping and a color entry** so the
+  chart doesn't silently fall back to the generic palette.
 
 ## Database (`FitsDatabase.cs`)
 
@@ -100,8 +112,11 @@ Produces a CSV matching AstroBin's "Acquisition sessions" bulk-upload format:
 
 ## UI conventions
 
-- Menu structure: a single top-level **Database** menu (`databaseToolStripMenuItem`) containing
-  **Load a DB**, **Save to Database**, **Map Filters**, **Clear Database**.
+- Menu structure: `menuStrip1` has two top-level menus:
+  - **Database** (`databaseToolStripMenuItem`): **Load a DB**, **Save to Database**, **Map
+    Filters**, **Clear Database**.
+  - **View** (`viewToolStripMenuItem`): **Dark Mode** (`darkModeToolStripMenuItem`, a
+    `CheckOnClick` checkbox item) toggling the app theme.
 - `FilterMappingForm` is built entirely in code (`DataGridView` + Add/Remove buttons), not via the
   WinForms designer — there's no matching `.Designer.cs` for it.
 - **Notifications**: informational/warning/success messages use `ShowNotification(title, message)`,
@@ -110,6 +125,29 @@ Produces a CSV matching AstroBin's "Acquisition sessions" bulk-upload format:
   app ships no custom `.ico`). **Do not use `MessageBox.Show` for routine info/warning/error
   feedback** — reserve `MessageBox` only for cases requiring an explicit user decision (e.g. the
   Yes/No confirmation before `Clear Database`, which is destructive/irreversible).
+
+## Theming and the Overview chart
+
+- **`ThemeManager.Apply(Form, AppTheme)`**: walks `form.Controls` recursively and sets colors on
+  known control types (`MenuStrip` incl. a custom `ProfessionalColorTable` for dark dropdowns,
+  `DataGridView` cell/header styles, `Button` via `FlatStyle.Flat`, `Label`, `GroupBox`, `Panel`,
+  `PieChartControl.DarkMode`). **When adding a new control type to `Form1`, add a corresponding
+  `case` in `ThemeManager.ApplyToControls` if it needs theme-aware colors** — otherwise it will
+  keep its default WinForms colors even in dark mode (easy to miss).
+- Theme preference (`AppTheme.Light`/`Dark`) is persisted by `AppSettingsStore` to
+  `%AppData%\AstroBinDataImporter\Settings.txt` (plain text, just the enum name) — a separate,
+  independent store from `FilterMappingStore`/`FitsDatabase`. Loaded in the `Form1` constructor and
+  applied before the form is shown; saved on every toggle of the **View → Dark Mode** menu item.
+- **`PieChartControl`** (`Control` subclass): dependency-free GDI+ donut-free pie chart + legend.
+  Call `SetData(IEnumerable<PieSlice>)` to update it; `PieSlice` is a `record(string Label, int
+  Count, Color Color)`. It lives inside `grp_Overview` (a `GroupBox` titled "Overview", docked to
+  the right of `dgv_SummaryData` in `Form1.Designer.cs`).
+- **`Form1.UpdateOverviewChart(List<FitsRecord> lightRecords)`**: called at the end of
+  `PopulateSummary` (i.e. every time the grid is refreshed — after loading files, opening a
+  database, etc.). Groups **Light** frames only by `FilterAliasResolver.ToCanonicalName`, builds
+  one `PieSlice` per distinct filter with its color from `FilterAliasResolver.ToColor`, and feeds
+  the list to `pieChart.SetData`. If you add a new place that mutates `_currentRecords` without
+  going through `PopulateSummary`, remember the chart won't refresh unless you call this too.
 
 ## Things to watch out for
 
@@ -122,3 +160,14 @@ Produces a CSV matching AstroBin's "Acquisition sessions" bulk-upload format:
   lifetimes/locations — don't conflate "the project database" with "the global filter code list".
 - `FitsReader` (cfitsio P/Invoke) and `XisfReader` (hand-rolled XISF/XML header parser) must be
   kept in sync: any new header field added to one should be added to the other too.
+- `Form1.Designer.cs` currently has **two theme-affecting control collections** to remember when
+  adding controls: the themed tree walked by `ThemeManager` (automatic, as long as the control type
+  has a `case`) and the `grp_Overview`/`pieChart` pairing, which is anchored `Top|Bottom|Right` so
+  it stays docked to the right edge as the form resizes — if you add more Overview-panel controls,
+  anchor/dock them relative to `grp_Overview`, not the form.
+- Running `run_build` after any `ThemeManager`/`PieChartControl`/Designer edit is especially
+  important: WinForms analyzers (e.g. `WFO1000`) flag public properties on custom controls that
+  look like they should be designer-serializable (like `PieChartControl.DarkMode`) — mark such
+  properties `[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]` and
+  `[Browsable(false)]` if they're meant to be set purely in code.
+

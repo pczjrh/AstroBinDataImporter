@@ -51,6 +51,10 @@
             saveToDatabaseToolStripMenuItem = new ToolStripMenuItem();
             mapFiltersToolStripMenuItem = new ToolStripMenuItem();
             clearDatabaseToolStripMenuItem = new ToolStripMenuItem();
+            viewToolStripMenuItem = new ToolStripMenuItem();
+            darkModeToolStripMenuItem = new ToolStripMenuItem();
+            grp_Overview = new GroupBox();
+            pieChart = new PieChartControl();
             notifyIcon1 = new NotifyIcon(components);
             ((System.ComponentModel.ISupportInitialize)dgv_SummaryData).BeginInit();
             menuStrip1.SuspendLayout();
@@ -71,7 +75,7 @@
             pb_Progress.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             pb_Progress.Location = new Point(12, 315);
             pb_Progress.Name = "pb_Progress";
-            pb_Progress.Size = new Size(570, 23);
+            pb_Progress.Size = new Size(706, 23);
             pb_Progress.TabIndex = 1;
             // 
             // dgv_SummaryData
@@ -79,7 +83,7 @@
             dgv_SummaryData.AllowUserToAddRows = false;
             dgv_SummaryData.AllowUserToDeleteRows = false;
             dgv_SummaryData.AllowUserToOrderColumns = true;
-            dgv_SummaryData.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            dgv_SummaryData.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
             dgv_SummaryData.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgv_SummaryData.Columns.AddRange(new DataGridViewColumn[] { col_Filter, col_Date, col_Frames, col_TotalExposure, col_AvgCcdTemp, col_Camera });
             dgv_SummaryData.Location = new Point(12, 58);
@@ -87,7 +91,7 @@
             dgv_SummaryData.ReadOnly = true;
             dgv_SummaryData.RowHeadersVisible = false;
             dgv_SummaryData.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgv_SummaryData.Size = new Size(662, 250);
+            dgv_SummaryData.Size = new Size(450, 250);
             dgv_SummaryData.TabIndex = 2;
             // 
             // col_Filter
@@ -134,7 +138,7 @@
             // btn_Export
             // 
             btn_Export.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btn_Export.Location = new Point(600, 315);
+            btn_Export.Location = new Point(735, 315);
             btn_Export.Name = "btn_Export";
             btn_Export.Size = new Size(75, 23);
             btn_Export.TabIndex = 3;
@@ -163,7 +167,7 @@
             // btn_SaveDatabase
             // 
             btn_SaveDatabase.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btn_SaveDatabase.Location = new Point(553, 29);
+            btn_SaveDatabase.Location = new Point(689, 29);
             btn_SaveDatabase.Name = "btn_SaveDatabase";
             btn_SaveDatabase.Size = new Size(120, 23);
             btn_SaveDatabase.TabIndex = 6;
@@ -183,10 +187,10 @@
             // 
             // menuStrip1
             // 
-            menuStrip1.Items.AddRange(new ToolStripItem[] { databaseToolStripMenuItem });
+            menuStrip1.Items.AddRange(new ToolStripItem[] { databaseToolStripMenuItem, viewToolStripMenuItem });
             menuStrip1.Location = new Point(0, 0);
             menuStrip1.Name = "menuStrip1";
-            menuStrip1.Size = new Size(686, 24);
+            menuStrip1.Size = new Size(822, 24);
             menuStrip1.TabIndex = 8;
             menuStrip1.Text = "menuStrip1";
             // 
@@ -225,6 +229,41 @@
             clearDatabaseToolStripMenuItem.Text = "Clear Database";
             clearDatabaseToolStripMenuItem.Click += clearDatabaseToolStripMenuItem_Click;
             // 
+            // viewToolStripMenuItem
+            // 
+            viewToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { darkModeToolStripMenuItem });
+            viewToolStripMenuItem.Name = "viewToolStripMenuItem";
+            viewToolStripMenuItem.Size = new Size(44, 20);
+            viewToolStripMenuItem.Text = "View";
+            // 
+            // darkModeToolStripMenuItem
+            // 
+            darkModeToolStripMenuItem.CheckOnClick = true;
+            darkModeToolStripMenuItem.Name = "darkModeToolStripMenuItem";
+            darkModeToolStripMenuItem.Size = new Size(180, 22);
+            darkModeToolStripMenuItem.Text = "Dark Mode";
+            darkModeToolStripMenuItem.Click += darkModeToolStripMenuItem_Click;
+            // 
+            // grp_Overview
+            // 
+            grp_Overview.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            grp_Overview.Controls.Add(pieChart);
+            grp_Overview.Location = new Point(474, 58);
+            grp_Overview.Name = "grp_Overview";
+            grp_Overview.Size = new Size(336, 250);
+            grp_Overview.TabIndex = 9;
+            grp_Overview.TabStop = false;
+            grp_Overview.Text = "Overview";
+            // 
+            // pieChart
+            // 
+            pieChart.DarkMode = false;
+            pieChart.Dock = DockStyle.Fill;
+            pieChart.Location = new Point(3, 19);
+            pieChart.Name = "pieChart";
+            pieChart.Size = new Size(330, 228);
+            pieChart.TabIndex = 0;
+            // 
             // notifyIcon1
             // 
             notifyIcon1.Text = "AstroBin Data Importer";
@@ -234,7 +273,8 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(686, 353);
+            ClientSize = new Size(822, 353);
+            Controls.Add(grp_Overview);
             Controls.Add(btn_CreateDatabase);
             Controls.Add(btn_SaveDatabase);
             Controls.Add(lbl_TotalIntTimeResult);
@@ -276,6 +316,10 @@
         private ToolStripMenuItem saveToDatabaseToolStripMenuItem;
         private ToolStripMenuItem mapFiltersToolStripMenuItem;
         private ToolStripMenuItem clearDatabaseToolStripMenuItem;
+        private ToolStripMenuItem viewToolStripMenuItem;
+        private ToolStripMenuItem darkModeToolStripMenuItem;
+        private GroupBox grp_Overview;
+        private PieChartControl pieChart;
         private NotifyIcon notifyIcon1;
     }
 }
