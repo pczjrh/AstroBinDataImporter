@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Globalization;
 using System.Text;
 
 namespace AstroBin_CSV_Importer
@@ -132,7 +131,7 @@ namespace AstroBin_CSV_Importer
 
         private static string EscapeCsvField(string field)
         {
-            if (field.Contains(',') || field.Contains('"') || field.Contains('\n'))
+            if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
             {
                 return "\"" + field.Replace("\"", "\"\"") + "\"";
             }

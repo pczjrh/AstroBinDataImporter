@@ -1,15 +1,28 @@
+﻿using System.ComponentModel;
+using Syncfusion.WinForms.Controls;
+using Syncfusion.WinForms.DataGrid;
+using Syncfusion.WinForms.DataGrid.Enums;
+using Syncfusion.WinForms.GridCommon.ScrollAxis;
+
 namespace AstroBin_CSV_Importer
 {
     /// <summary>
     /// Allows the Filter Name -> numeric Code list to be viewed, edited, added to, and
-    /// removed from, via an editable grid. Changes are only persisted when the user
-    /// confirms with OK (see <see cref="Mappings"/>).
+    /// removed from, via an editable Syncfusion grid. Changes are only persisted when the
+    /// user confirms with OK (see <see cref="Mappings"/>).
     /// </summary>
     public sealed class FilterMappingForm : Form
     {
-        private readonly DataGridView _grid;
-        private readonly DataGridViewTextBoxColumn _nameColumn;
-        private readonly DataGridViewTextBoxColumn _codeColumn;
+        /// <summary>Editable row model bound to the grid.</summary>
+        public sealed class MappingRow
+        {
+            public string Name { get; set; } = string.Empty;
+            public int Code { get; set; }
+        }
+
+        private readonly SfDataGrid _grid;
+        private readonly BindingList<MappingRow> _rows;
+        private readonly Label _countLabel;
 
         /// <summary>
         /// Populated with the Name -> Code values the user confirmed, once the dialog
@@ -24,87 +37,83 @@ namespace AstroBin_CSV_Importer
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
+            ShowInTaskbar = false;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(360, 420);
-            MinimumSize = new Size(320, 300);
+            ClientSize = new Size(420, 500);
+            MinimumSize = new Size(360, 360);
 
-            _nameColumn = new DataGridViewTextBoxColumn
+            _rows = new BindingList<MappingRow>(
+                existingMappings.Select(m => new MappingRow { Name = m.Name, Code = m.Code }).ToList());
+
+            var titleLabel = new Label
             {
-                HeaderText = "Name",
-                Name = "Name",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                Text = "Filter mappings",
+                Font = new Font("Segoe UI Semibold", 14F),
+                AutoSize = true,
+                Dock = DockStyle.Top,
+                Padding = new Padding(0, 0, 0, 2)
             };
 
-            _codeColumn = new DataGridViewTextBoxColumn
+            var hintLabel = new Label
             {
-                HeaderText = "Number",
-                Name = "Code",
-                Width = 90,
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                Text = "Map each filter name to its AstroBin filter number. Double-click a cell to edit.",
+                AutoSize = false,
+                Height = 38,
+                Dock = DockStyle.Top
             };
 
-            _grid = new DataGridView
+            _countLabel = new Label { AutoSize = true, Dock = DockStyle.Bottom, Padding = new Padding(0, 6, 0, 0) };
+
+            _grid = new SfDataGrid
             {
                 Dock = DockStyle.Fill,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                RowHeadersVisible = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = true,
-                AutoGenerateColumns = false
+                AutoGenerateColumns = false,
+                AllowEditing = true,
+                AllowResizingColumns = false,
+                AllowSorting = true,
+                AllowDraggingColumns = false,
+                EditMode = EditMode.DoubleClick,
+                SelectionMode = GridSelectionMode.Extended,
+                AutoSizeColumnsMode = AutoSizeColumnsMode.Fill,
+                ShowRowHeader = false,
+                DataSource = _rows
             };
-            _grid.Columns.AddRange(_nameColumn, _codeColumn);
-
-            foreach ((string name, int code) in existingMappings)
+            _grid.Columns.Add(new GridTextColumn { MappingName = nameof(MappingRow.Name), HeaderText = "Name", MinimumWidth = 120 });
+            _grid.Columns.Add(new GridNumericColumn
             {
-                _grid.Rows.Add(name, code);
-            }
+                MappingName = nameof(MappingRow.Code),
+                HeaderText = "Number",
+                NumberFormatInfo = new System.Globalization.NumberFormatInfo { NumberDecimalDigits = 0 },
+                MinimumWidth = 90,
+                Width = 100,
+                AutoSizeColumnsMode = AutoSizeColumnsMode.None
+            });
+            _rows.ListChanged += (_, _) => UpdateCount();
+            UpdateCount();
 
-            var addButton = new Button { Text = "Add", AutoSize = true };
-            addButton.Click += (_, _) =>
-            {
-                int rowIndex = _grid.Rows.Add(string.Empty, 0);
-                _grid.ClearSelection();
-                _grid.Rows[rowIndex].Selected = true;
-                _grid.CurrentCell = _grid.Rows[rowIndex].Cells[0];
-                _grid.BeginEdit(true);
-            };
+            var addButton = new SfButton { Text = "Add", Size = new Size(80, 32), Tag = "primary" };
+            addButton.Click += (_, _) => AddRow();
 
-            var removeButton = new Button { Text = "Remove Selected", AutoSize = true };
-            removeButton.Click += (_, _) =>
-            {
-                foreach (DataGridViewRow row in _grid.SelectedRows.Cast<DataGridViewRow>().ToList())
-                {
-                    if (!row.IsNewRow)
-                    {
-                        _grid.Rows.Remove(row);
-                    }
-                }
-            };
+            var removeButton = new SfButton { Text = "Remove Selected", Size = new Size(140, 32) };
+            removeButton.Click += (_, _) => RemoveSelected();
 
-            var topButtonPanel = new FlowLayoutPanel
+            var toolbar = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
                 FlowDirection = FlowDirection.LeftToRight,
-                AutoSize = true,
-                Padding = new Padding(8, 8, 8, 0)
+                Height = 44,
+                Padding = new Padding(0, 4, 0, 4)
             };
-            topButtonPanel.Controls.Add(addButton);
-            topButtonPanel.Controls.Add(removeButton);
+            toolbar.Controls.Add(addButton);
+            toolbar.Controls.Add(removeButton);
 
-            var bottomButtonPanel = new FlowLayoutPanel
+            var okButton = new SfButton { Text = "OK", DialogResult = DialogResult.OK, Size = new Size(90, 34), Tag = "primary" };
+            var cancelButton = new SfButton { Text = "Cancel", DialogResult = DialogResult.Cancel, Size = new Size(90, 34) };
+
+            okButton.Click += (_, _) =>
             {
-                Dock = DockStyle.Bottom,
-                FlowDirection = FlowDirection.RightToLeft,
-                AutoSize = true,
-                Padding = new Padding(8)
-            };
+                _grid.CurrentCell?.EndEdit();
 
-            var okButton = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
-            var cancelButton = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
-
-            okButton.Click += (_, e) =>
-            {
                 if (!TryBuildMappings(out List<(string Name, int Code)> mappings, out string? error))
                 {
                     MessageBox.Show(this, error, "Invalid Entry", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -115,15 +124,64 @@ namespace AstroBin_CSV_Importer
                 Mappings = mappings;
             };
 
+            var bottomButtonPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Bottom,
+                FlowDirection = FlowDirection.RightToLeft,
+                Height = 50,
+                Padding = new Padding(0, 8, 0, 0)
+            };
             bottomButtonPanel.Controls.Add(cancelButton);
             bottomButtonPanel.Controls.Add(okButton);
 
             AcceptButton = okButton;
             CancelButton = cancelButton;
 
-            Controls.Add(_grid);
-            Controls.Add(topButtonPanel);
-            Controls.Add(bottomButtonPanel);
+            // Container gives the content breathing room from the form edges.
+            var content = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16) };
+            content.Controls.Add(_grid);
+            content.Controls.Add(_countLabel);
+            content.Controls.Add(toolbar);
+            content.Controls.Add(hintLabel);
+            content.Controls.Add(titleLabel);
+            content.Controls.Add(bottomButtonPanel);
+            Controls.Add(content);
+
+            ThemeManager.Apply(this, AppSettingsStore.LoadTheme());
+            titleLabel.Font = new Font("Segoe UI Semibold", 14F);
+            // Panels are painted with the "panel" colour by ThemeManager; match the form instead
+            // so the dialog reads as one surface with the grid as the only raised element.
+            content.BackColor = BackColor;
+            toolbar.BackColor = BackColor;
+            bottomButtonPanel.BackColor = BackColor;
+        }
+
+        private void UpdateCount() =>
+            _countLabel.Text = _rows.Count == 1 ? "1 filter" : $"{_rows.Count} filters";
+
+        private void AddRow()
+        {
+            _grid.CurrentCell?.EndEdit();
+
+            var row = new MappingRow();
+            _rows.Add(row);
+
+            int rowIndex = _grid.TableControl.ResolveToRowIndex(row);
+            _grid.TableControl.ScrollRows.ScrollInView(rowIndex);
+            _grid.SelectedItems.Clear();
+            _grid.SelectedItem = row;
+            _grid.MoveToCurrentCell(new RowColumnIndex(rowIndex, 0));
+            _grid.CurrentCell?.BeginEdit();
+        }
+
+        private void RemoveSelected()
+        {
+            _grid.CurrentCell?.EndEdit();
+
+            foreach (MappingRow row in _grid.SelectedItems.OfType<MappingRow>().ToList())
+            {
+                _rows.Remove(row);
+            }
         }
 
         private bool TryBuildMappings(out List<(string Name, int Code)> mappings, out string? error)
@@ -133,15 +191,9 @@ namespace AstroBin_CSV_Importer
 
             var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (DataGridViewRow row in _grid.Rows)
+            foreach (MappingRow row in _rows)
             {
-                if (row.IsNewRow)
-                {
-                    continue;
-                }
-
-                string name = Convert.ToString(row.Cells[_nameColumn.Index].Value)?.Trim() ?? string.Empty;
-                string codeText = Convert.ToString(row.Cells[_codeColumn.Index].Value)?.Trim() ?? string.Empty;
+                string name = row.Name?.Trim() ?? string.Empty;
 
                 if (string.IsNullOrWhiteSpace(name))
                 {
@@ -149,9 +201,10 @@ namespace AstroBin_CSV_Importer
                     return false;
                 }
 
-                if (!int.TryParse(codeText, out int code))
+                // Names are stored in a "Name,Code" CSV file, so a comma would corrupt the line.
+                if (name.Contains(','))
                 {
-                    error = $"'{name}' has an invalid numeric value: '{codeText}'.";
+                    error = $"Filter name '{name}' cannot contain a comma.";
                     return false;
                 }
 
@@ -161,7 +214,7 @@ namespace AstroBin_CSV_Importer
                     return false;
                 }
 
-                mappings.Add((name, code));
+                mappings.Add((name, row.Code));
             }
 
             return true;

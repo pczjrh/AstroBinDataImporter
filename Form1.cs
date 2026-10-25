@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml.Linq;
@@ -7,8 +7,15 @@ namespace AstroBin_CSV_Importer
 {
     public partial class Form1 : Form
     {
+        // Records currently shown in the grid/chart and used for export (may include unsaved data).
         private List<FitsRecord> _currentRecords = new();
+
+        // Project folder holding AstroBinData.sqlite; null until a database is created/opened.
         private string? _databaseFolder;
+
+        // Designed client/grid heights, used to work out how tall the form may grow.
+        private int _baseClientHeight;
+        private int _baseGridHeight;
 
         public Form1()
         {
@@ -22,6 +29,8 @@ namespace AstroBin_CSV_Importer
             // while still allowing the form (and table) to grow/shrink vertically.
             MinimumSize = new Size(Width, MinimumSize.Height);
             MaximumSize = new Size(Width, int.MaxValue);
+            _baseClientHeight = ClientSize.Height;
+            _baseGridHeight = dgv_SummaryData.Height;
 
             // A database must be created/opened before any FITS/XISF data can be loaded.
             btn_LoadFITS.Enabled = false;
@@ -29,8 +38,27 @@ namespace AstroBin_CSV_Importer
             AppTheme theme = AppSettingsStore.LoadTheme();
             darkModeToolStripMenuItem.Checked = theme == AppTheme.Dark;
             ApplyTheme(theme);
+
+            // Start with the height capped to the (empty) table; it grows as data is loaded.
+            LimitHeightToContent(0);
         }
 
+        /// <summary>
+        /// Caps the form's height so it can't grow past the bottom of the summary table's
+        /// last row (never below the designed height), and shrinks it if it is already taller.
+        /// </summary>
+        private void LimitHeightToContent(int rowCount)
+        {
+            int gridNeeded = dgv_SummaryData.HeaderRowHeight + (rowCount * dgv_SummaryData.RowHeight) + 4;
+            int chrome = _baseClientHeight - _baseGridHeight;
+            int maxClientHeight = Math.Max(_baseClientHeight, gridNeeded + chrome);
+            int frameHeight = Height - ClientSize.Height;
+
+            // Setting MaximumSize also clamps the current size if the form is already taller.
+            MaximumSize = new Size(Width, maxClientHeight + frameHeight);
+        }
+
+        /// <summary>Applies the theme to the whole form (Syncfusion skin + standard controls).</summary>
         private void ApplyTheme(AppTheme theme)
         {
             ThemeManager.Apply(this, theme);
@@ -43,6 +71,7 @@ namespace AstroBin_CSV_Importer
             AppSettingsStore.SaveTheme(theme);
         }
 
+        /// <summary>Shows a tray balloon; the app's standard non-blocking way to report status.</summary>
         private void ShowNotification(string title, string message)
         {
             notifyIcon1.BalloonTipTitle = title;
@@ -50,6 +79,7 @@ namespace AstroBin_CSV_Importer
             notifyIcon1.ShowBalloonTip(3000);
         }
 
+        /// <summary>Creates or opens a project database in a chosen folder and loads any stored records.</summary>
         private void btn_CreateDatabase_Click(object sender, EventArgs e)
         {
             using var fbd = new FolderBrowserDialog
@@ -84,7 +114,8 @@ namespace AstroBin_CSV_Importer
             }
         }
 
-        private async void button1_Click(object sender, EventArgs e)
+        /// <summary>Reads headers from the chosen FITS/XISF files off the UI thread and merges them with stored data.</summary>
+        private async void btn_LoadFITS_Click(object sender, EventArgs e)
         {
             if (_databaseFolder is null)
             {
@@ -108,7 +139,7 @@ namespace AstroBin_CSV_Importer
             }
 
             btn_LoadFITS.Enabled = false;
-            dgv_SummaryData.Rows.Clear();
+            dgv_SummaryData.DataSource = new List<SummaryRow>();
             pb_Progress.Minimum = 0;
             pb_Progress.Maximum = ofd.FileNames.Length;
             pb_Progress.Value = 0;
@@ -130,6 +161,8 @@ namespace AstroBin_CSV_Importer
             }
             catch (Exception ex)
             {
+                // The grid was cleared before reading started; restore it from the records we still hold.
+                PopulateSummary(_currentRecords);
                 ShowNotification("Import Error", $"An error occurred while reading FITS/XISF files:\n{ex.Message}");
             }
             finally
@@ -139,6 +172,7 @@ namespace AstroBin_CSV_Importer
             }
         }
 
+        /// <summary>Persists the current records to SQLite (duplicates are ignored by the database).</summary>
         private void btn_SaveDatabase_Click(object sender, EventArgs e)
         {
             if (_databaseFolder is null)
@@ -209,10 +243,9 @@ namespace AstroBin_CSV_Importer
             return FitsRecordDeduplicator.Deduplicate(records);
         }
 
+        /// <summary>Rebuilds the summary grid, total integration time and chart from the given records.</summary>
         private void PopulateSummary(List<FitsRecord> records)
         {
-            dgv_SummaryData.Rows.Clear();
-
             // Only light frames represent actual imaging data for the session summary;
             // calibration frames (dark/bias/flat/flat-dark) are tracked separately and
             // rolled into the AstroBin export's darks/flats/flatDarks/bias counts.
@@ -223,6 +256,7 @@ namespace AstroBin_CSV_Importer
                 .OrderBy(g => g.Key.DateOnly, StringComparer.Ordinal)
                 .ThenBy(g => g.Key.Filter, StringComparer.OrdinalIgnoreCase);
 
+            var rows = new List<SummaryRow>();
             foreach (var group in groups)
             {
                 int frameCount = group.Count();
@@ -231,19 +265,22 @@ namespace AstroBin_CSV_Importer
                 string ccdName = group.Select(r => r.CcdName)
                                       .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "Unknown";
 
-                dgv_SummaryData.Rows.Add(
+                rows.Add(new SummaryRow(
                     group.Key.Filter,
                     group.Key.DateOnly,
                     frameCount,
                     totalExposure,
                     avgCcdTemp,
-                    ccdName);
+                    ccdName));
             }
 
-            if (dgv_SummaryData.Rows.Count == 0)
+            if (rows.Count == 0)
             {
-                dgv_SummaryData.Rows.Add("No valid FITS headers could be read from the selected files.", "", "", "", "", "");
+                rows.Add(new SummaryRow("No light frames to display.", "", null, null, null, ""));
             }
+
+            dgv_SummaryData.DataSource = rows;
+            LimitHeightToContent(rows.Count);
 
             double totalSeconds = lightRecords.Sum(r => r.ExposureSeconds);
             TimeSpan totalIntegrationTime = TimeSpan.FromSeconds(totalSeconds);
@@ -257,6 +294,7 @@ namespace AstroBin_CSV_Importer
             UpdateOverviewChart(lightRecords);
         }
 
+        /// <summary>Feeds the pie chart one slice per canonical filter, largest first.</summary>
         private void UpdateOverviewChart(List<FitsRecord> lightRecords)
         {
             var filterCounts = lightRecords
@@ -275,11 +313,7 @@ namespace AstroBin_CSV_Importer
             pieChart.SetData(slices);
         }
 
-        private void label1_Click(object sender, EventArgs e)
-        {
-
-        }
-
+        /// <summary>Writes the AstroBin CSV next to the database and copies it to the clipboard.</summary>
         private void btn_Export_Click(object sender, EventArgs e)
         {
             if (_databaseFolder is null)
@@ -430,7 +464,7 @@ namespace AstroBin_CSV_Importer
         public double? MeanSqm { get; init; }
 
         /// <summary>
-        /// DATE-OB truncated to just the calendar date portion (yyyy-MM-dd) for grouping purposes.
+        /// DATE-OBS truncated to just the calendar date portion (yyyy-MM-dd) for grouping purposes.
         /// </summary>
         public string DateOnly => DateObs.Length >= 10 ? DateObs[..10] : DateObs;
     }
@@ -458,7 +492,7 @@ namespace AstroBin_CSV_Importer
                 string? bayerPatternRaw = ReadKeyword(fptr, "BAYERPAT") ?? ReadKeyword(fptr, "BAYER_MATRIX");
                 string filter = HeaderValueHelpers.ResolveFilter(filterRaw, bayerPatternRaw);
                 string dateObs = ReadKeyword(fptr, "DATE-OBS") ?? "Unknown";
-                string? exposureRaw = ReadKeyword(fptr, "EXPOSURE");
+                string? exposureRaw = ReadKeyword(fptr, "EXPOSURE") ?? ReadKeyword(fptr, "EXPTIME");
                 string? ccdTempRaw = ReadKeyword(fptr, "CCD-TEMP");
                 string? ccdName = ReadKeyword(fptr, "INSTRUME") ?? ReadKeyword(fptr, "INSTRUMENT");
                 string? imageTypeRaw = ReadKeyword(fptr, "IMAGETYP");

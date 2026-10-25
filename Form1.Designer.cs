@@ -29,22 +29,14 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
-            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
-            btn_LoadFITS = new Button();
+            btn_LoadFITS = new Syncfusion.WinForms.Controls.SfButton();
             pb_Progress = new ProgressBar();
-            dgv_SummaryData = new DataGridView();
-            col_Filter = new DataGridViewTextBoxColumn();
-            col_Date = new DataGridViewTextBoxColumn();
-            col_Frames = new DataGridViewTextBoxColumn();
-            col_TotalExposure = new DataGridViewTextBoxColumn();
-            col_AvgCcdTemp = new DataGridViewTextBoxColumn();
-            col_Camera = new DataGridViewTextBoxColumn();
-            btn_Export = new Button();
+            dgv_SummaryData = new Syncfusion.WinForms.DataGrid.SfDataGrid();
+            btn_Export = new Syncfusion.WinForms.Controls.SfButton();
             lbl_TotalTime = new Label();
             lbl_TotalIntTimeResult = new Label();
-            btn_SaveDatabase = new Button();
-            btn_CreateDatabase = new Button();
+            btn_SaveDatabase = new Syncfusion.WinForms.Controls.SfButton();
+            btn_CreateDatabase = new Syncfusion.WinForms.Controls.SfButton();
             menuStrip1 = new MenuStrip();
             databaseToolStripMenuItem = new ToolStripMenuItem();
             loadDatabaseToolStripMenuItem = new ToolStripMenuItem();
@@ -54,7 +46,7 @@
             viewToolStripMenuItem = new ToolStripMenuItem();
             darkModeToolStripMenuItem = new ToolStripMenuItem();
             grp_Overview = new GroupBox();
-            pieChart = new PieChartControl();
+            pieChart = new OverviewChartControl();
             notifyIcon1 = new NotifyIcon(components);
             ((System.ComponentModel.ISupportInitialize)dgv_SummaryData).BeginInit();
             menuStrip1.SuspendLayout();
@@ -62,104 +54,70 @@
             // 
             // btn_LoadFITS
             // 
-            btn_LoadFITS.Location = new Point(92, 29);
+            btn_LoadFITS.Location = new Point(132, 34);
             btn_LoadFITS.Name = "btn_LoadFITS";
-            btn_LoadFITS.Size = new Size(75, 23);
+            btn_LoadFITS.Size = new Size(110, 30);
             btn_LoadFITS.TabIndex = 0;
             btn_LoadFITS.Text = "Load FITS";
-            btn_LoadFITS.UseVisualStyleBackColor = true;
-            btn_LoadFITS.Click += button1_Click;
+            btn_LoadFITS.Click += btn_LoadFITS_Click;
             // 
             // pb_Progress
             // 
             pb_Progress.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            pb_Progress.Location = new Point(12, 315);
+            pb_Progress.Location = new Point(12, 336);
             pb_Progress.Name = "pb_Progress";
-            pb_Progress.Size = new Size(706, 23);
+            pb_Progress.Size = new Size(660, 12);
             pb_Progress.TabIndex = 1;
-            // 
+            //
             // dgv_SummaryData
-            // 
-            dgv_SummaryData.AllowUserToAddRows = false;
-            dgv_SummaryData.AllowUserToDeleteRows = false;
-            dgv_SummaryData.AllowUserToOrderColumns = true;
+            //
+            dgv_SummaryData.AccessibleName = "Table";
+            dgv_SummaryData.AllowDraggingColumns = true;
+            dgv_SummaryData.AllowEditing = false;
+            dgv_SummaryData.AllowResizingColumns = true;
+            dgv_SummaryData.AutoGenerateColumns = false;
+            dgv_SummaryData.AutoSizeColumnsMode = Syncfusion.WinForms.DataGrid.Enums.AutoSizeColumnsMode.Fill;
             dgv_SummaryData.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
-            dgv_SummaryData.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgv_SummaryData.Columns.AddRange(new DataGridViewColumn[] { col_Filter, col_Date, col_Frames, col_TotalExposure, col_AvgCcdTemp, col_Camera });
-            dgv_SummaryData.Location = new Point(12, 58);
+            dgv_SummaryData.Columns.Add(new Syncfusion.WinForms.DataGrid.GridTextColumn() { MappingName = "Filter", HeaderText = "Filter", MinimumWidth = 60 });
+            dgv_SummaryData.Columns.Add(new Syncfusion.WinForms.DataGrid.GridTextColumn() { MappingName = "Date", HeaderText = "Date", MinimumWidth = 80 });
+            dgv_SummaryData.Columns.Add(new Syncfusion.WinForms.DataGrid.GridTextColumn() { MappingName = "Frames", HeaderText = "Frames", MinimumWidth = 55 });
+            dgv_SummaryData.Columns.Add(new Syncfusion.WinForms.DataGrid.GridTextColumn() { MappingName = "TotalExposure", HeaderText = "Exp (s)", Format = "F1", MinimumWidth = 80 });
+            dgv_SummaryData.Columns.Add(new Syncfusion.WinForms.DataGrid.GridTextColumn() { MappingName = "AvgCcdTemp", HeaderText = "Temp (°C)", Format = "F1", MinimumWidth = 90 });
+            dgv_SummaryData.Columns.Add(new Syncfusion.WinForms.DataGrid.GridTextColumn() { MappingName = "Camera", HeaderText = "Camera", MinimumWidth = 60 });
+            dgv_SummaryData.HeaderRowHeight = 34;
+            dgv_SummaryData.Location = new Point(12, 76);
             dgv_SummaryData.Name = "dgv_SummaryData";
-            dgv_SummaryData.ReadOnly = true;
-            dgv_SummaryData.RowHeadersVisible = false;
-            dgv_SummaryData.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgv_SummaryData.Size = new Size(450, 250);
+            dgv_SummaryData.RowHeight = 28;
+            dgv_SummaryData.SelectionMode = Syncfusion.WinForms.DataGrid.Enums.GridSelectionMode.Single;
+            dgv_SummaryData.ShowRowHeader = false;
+            dgv_SummaryData.Size = new Size(500, 244);
             dgv_SummaryData.TabIndex = 2;
-            // 
-            // col_Filter
-            // 
-            col_Filter.HeaderText = "Filter";
-            col_Filter.Name = "col_Filter";
-            col_Filter.ReadOnly = true;
-            // 
-            // col_Date
-            // 
-            col_Date.HeaderText = "Date";
-            col_Date.Name = "col_Date";
-            col_Date.ReadOnly = true;
-            // 
-            // col_Frames
-            // 
-            col_Frames.HeaderText = "Frames";
-            col_Frames.Name = "col_Frames";
-            col_Frames.ReadOnly = true;
-            // 
-            // col_TotalExposure
-            // 
-            dataGridViewCellStyle1.Format = "F1";
-            col_TotalExposure.DefaultCellStyle = dataGridViewCellStyle1;
-            col_TotalExposure.HeaderText = "Total Exp (s)";
-            col_TotalExposure.Name = "col_TotalExposure";
-            col_TotalExposure.ReadOnly = true;
-            // 
-            // col_AvgCcdTemp
-            // 
-            dataGridViewCellStyle2.Format = "F1";
-            col_AvgCcdTemp.DefaultCellStyle = dataGridViewCellStyle2;
-            col_AvgCcdTemp.HeaderText = "Avg CCD Temp (°C)";
-            col_AvgCcdTemp.Name = "col_AvgCcdTemp";
-            col_AvgCcdTemp.ReadOnly = true;
-            // 
-            // col_Camera
-            // 
-            col_Camera.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            col_Camera.HeaderText = "Camera";
-            col_Camera.Name = "col_Camera";
-            col_Camera.ReadOnly = true;
+            dgv_SummaryData.Text = "dgv_SummaryData";
             // 
             // btn_Export
             // 
             btn_Export.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btn_Export.Location = new Point(735, 315);
+            btn_Export.Location = new Point(690, 326);
             btn_Export.Name = "btn_Export";
-            btn_Export.Size = new Size(75, 23);
+            btn_Export.Size = new Size(120, 32);
             btn_Export.TabIndex = 3;
+            btn_Export.Tag = "primary";
             btn_Export.Text = "Export";
-            btn_Export.UseVisualStyleBackColor = true;
             btn_Export.Click += btn_Export_Click;
             // 
             // lbl_TotalTime
             // 
             lbl_TotalTime.AutoSize = true;
-            lbl_TotalTime.Location = new Point(214, 33);
+            lbl_TotalTime.Location = new Point(262, 41);
             lbl_TotalTime.Name = "lbl_TotalTime";
             lbl_TotalTime.Size = new Size(124, 15);
             lbl_TotalTime.TabIndex = 4;
             lbl_TotalTime.Text = "Total Integration Time";
-            lbl_TotalTime.Click += label1_Click;
             // 
             // lbl_TotalIntTimeResult
             // 
             lbl_TotalIntTimeResult.AutoSize = true;
-            lbl_TotalIntTimeResult.Location = new Point(344, 33);
+            lbl_TotalIntTimeResult.Location = new Point(400, 41);
             lbl_TotalIntTimeResult.Name = "lbl_TotalIntTimeResult";
             lbl_TotalIntTimeResult.Size = new Size(0, 15);
             lbl_TotalIntTimeResult.TabIndex = 5;
@@ -167,22 +125,21 @@
             // btn_SaveDatabase
             // 
             btn_SaveDatabase.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btn_SaveDatabase.Location = new Point(689, 29);
+            btn_SaveDatabase.Location = new Point(670, 34);
             btn_SaveDatabase.Name = "btn_SaveDatabase";
-            btn_SaveDatabase.Size = new Size(120, 23);
+            btn_SaveDatabase.Size = new Size(140, 30);
             btn_SaveDatabase.TabIndex = 6;
+            btn_SaveDatabase.Tag = "primary";
             btn_SaveDatabase.Text = "Save to Database";
-            btn_SaveDatabase.UseVisualStyleBackColor = true;
             btn_SaveDatabase.Click += btn_SaveDatabase_Click;
             // 
             // btn_CreateDatabase
             // 
-            btn_CreateDatabase.Location = new Point(11, 29);
+            btn_CreateDatabase.Location = new Point(12, 34);
             btn_CreateDatabase.Name = "btn_CreateDatabase";
-            btn_CreateDatabase.Size = new Size(75, 23);
+            btn_CreateDatabase.Size = new Size(114, 30);
             btn_CreateDatabase.TabIndex = 7;
             btn_CreateDatabase.Text = "New/Open DB";
-            btn_CreateDatabase.UseVisualStyleBackColor = true;
             btn_CreateDatabase.Click += btn_CreateDatabase_Click;
             // 
             // menuStrip1
@@ -248,16 +205,15 @@
             // 
             grp_Overview.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
             grp_Overview.Controls.Add(pieChart);
-            grp_Overview.Location = new Point(474, 58);
+            grp_Overview.Location = new Point(524, 76);
             grp_Overview.Name = "grp_Overview";
-            grp_Overview.Size = new Size(336, 250);
+            grp_Overview.Size = new Size(286, 244);
             grp_Overview.TabIndex = 9;
             grp_Overview.TabStop = false;
             grp_Overview.Text = "Overview";
             // 
             // pieChart
             // 
-            pieChart.DarkMode = false;
             pieChart.Dock = DockStyle.Fill;
             pieChart.Location = new Point(3, 19);
             pieChart.Name = "pieChart";
@@ -273,7 +229,7 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(822, 353);
+            ClientSize = new Size(822, 370);
             Controls.Add(grp_Overview);
             Controls.Add(btn_CreateDatabase);
             Controls.Add(btn_SaveDatabase);
@@ -296,20 +252,14 @@
 
         #endregion
 
-        private Button btn_LoadFITS;
+        private Syncfusion.WinForms.Controls.SfButton btn_LoadFITS;
         private ProgressBar pb_Progress;
-        private DataGridView dgv_SummaryData;
-        private DataGridViewTextBoxColumn col_Filter;
-        private DataGridViewTextBoxColumn col_Date;
-        private DataGridViewTextBoxColumn col_Frames;
-        private DataGridViewTextBoxColumn col_TotalExposure;
-        private DataGridViewTextBoxColumn col_AvgCcdTemp;
-        private DataGridViewTextBoxColumn col_Camera;
-        private Button btn_Export;
+        private Syncfusion.WinForms.DataGrid.SfDataGrid dgv_SummaryData;
+        private Syncfusion.WinForms.Controls.SfButton btn_Export;
         private Label lbl_TotalTime;
         private Label lbl_TotalIntTimeResult;
-        private Button btn_SaveDatabase;
-        private Button btn_CreateDatabase;
+        private Syncfusion.WinForms.Controls.SfButton btn_SaveDatabase;
+        private Syncfusion.WinForms.Controls.SfButton btn_CreateDatabase;
         private MenuStrip menuStrip1;
         private ToolStripMenuItem databaseToolStripMenuItem;
         private ToolStripMenuItem loadDatabaseToolStripMenuItem;
@@ -319,7 +269,7 @@
         private ToolStripMenuItem viewToolStripMenuItem;
         private ToolStripMenuItem darkModeToolStripMenuItem;
         private GroupBox grp_Overview;
-        private PieChartControl pieChart;
+        private OverviewChartControl pieChart;
         private NotifyIcon notifyIcon1;
     }
 }

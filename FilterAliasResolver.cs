@@ -1,4 +1,4 @@
-namespace AstroBin_CSV_Importer
+﻿namespace AstroBin_CSV_Importer
 {
     /// <summary>
     /// Normalizes filter name aliases/abbreviations (e.g. "R", "Luminance") to a single
@@ -77,7 +77,7 @@ namespace AstroBin_CSV_Importer
         /// Returns the display color associated with the given canonical filter name
         /// (as returned by <see cref="ToCanonicalName"/>). Known broadband/narrowband
         /// filters get fixed, recognizable colors; unknown filters fall back to a small
-        /// rotating palette keyed by name so they stay stable across refreshes.
+        /// rotating palette keyed by name so they stay stable across refreshes and runs.
         /// </summary>
         public static Color ToColor(string canonicalName)
         {
@@ -86,8 +86,15 @@ namespace AstroBin_CSV_Importer
                 return color;
             }
 
-            int index = Math.Abs(canonicalName.GetHashCode()) % FallbackPalette.Length;
-            return FallbackPalette[index];
+            // string.GetHashCode() is randomized per process (and Math.Abs can overflow), so use a
+            // simple deterministic hash to keep each unknown filter's color stable between runs.
+            int hash = 0;
+            foreach (char c in canonicalName.ToUpperInvariant())
+            {
+                hash = unchecked((hash * 31) + c) & int.MaxValue;
+            }
+
+            return FallbackPalette[hash % FallbackPalette.Length];
         }
     }
 }
